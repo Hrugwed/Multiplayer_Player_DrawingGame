@@ -1,5 +1,6 @@
 import { Palette } from 'lucide-react'
 import { Button } from 'pixel-retroui'
+import RetroGrid from './RetroGrid'
 
 const LoadingScreen = ({ message = 'Loading...' }) => {
   return (
@@ -10,15 +11,27 @@ const LoadingScreen = ({ message = 'Loading...' }) => {
         </div>
         <h2 className="loading-title font-minecraft">Collaborative Drawing Game</h2>
         <p className="loading-message font-minecraft">{message}</p>
+        
+        {/* RetroUI Loading Button */}
         <div className="loading-button-container">
           <Button
             variant="primary"
-            loading="true"
+            loading={true}
             disabled={true}
             className="loading-button"
           >
-            Loading...
+            Loading Game...
           </Button>
+        </div>
+
+        {/* Additional Loading Indicators */}
+        <div className="loading-indicators">
+          <div className="retro-spinner"></div>
+          <div className="loading-dots">
+            <span className="dot"></span>
+            <span className="dot"></span>
+            <span className="dot"></span>
+          </div>
         </div>
       </div>
 
@@ -83,6 +96,58 @@ const LoadingScreen = ({ message = 'Loading...' }) => {
           font-weight: bold !important;
           text-transform: uppercase !important;
           letter-spacing: 1px !important;
+        }
+
+        .loading-indicators {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .retro-spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid var(--accent-color);
+          border-top: 3px solid transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          box-shadow: 0 0 10px rgba(255, 221, 68, 0.5);
+        }
+
+        .loading-dots {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          background: var(--accent-color);
+          border-radius: 50%;
+          animation: bounce 1.4s ease-in-out infinite both;
+          box-shadow: 0 0 5px rgba(255, 221, 68, 0.7);
+        }
+
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        .dot:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        @keyframes bounce {
+          0%, 80%, 100% {
+            transform: scale(0);
+            opacity: 0.5;
+          }
+          40% {
+            transform: scale(1);
+            opacity: 1;
+          }
         }
 
         @keyframes fadeIn {

@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore'
 import { useSocketStore } from '../store/socketStore'
 import { Timer, Users, Palette, Send, Mic, MicOff } from 'lucide-react'
 import { Button, Card } from 'pixel-retroui'
+import RetroGrid from '../components/RetroGrid'
 import toast from 'react-hot-toast'
 
 const GamePage = () => {
@@ -400,6 +401,15 @@ const GamePage = () => {
 
   return (
     <div className="game-page">
+      {/* Retro Grid Background */}
+      <RetroGrid 
+        angle={65}
+        cellSize={50}
+        opacity={0.2}
+        lightLineColor="#ffdd44"
+        darkLineColor="#ff6b35"
+      />
+      
       <div className="game-container">
         {/* Header */}
         <div className="game-header">

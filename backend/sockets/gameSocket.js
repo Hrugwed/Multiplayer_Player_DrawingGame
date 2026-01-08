@@ -416,8 +416,28 @@ class GameSocketHandler {
           return;
         }
 
-        // Update game status
+        // Update game status and assign prompt
         game.status = 'active';
+        
+        // Assign a random prompt for memory storage
+        if (!game.promptText) {
+          // Use a simple random prompt for memory storage
+          const memoryPrompts = [
+            "A cat wearing a superhero cape",
+            "A robot playing guitar",
+            "A tree house in the clouds",
+            "A dragon eating ice cream",
+            "A spaceship landing on Mars",
+            "A wizard cooking breakfast",
+            "A dinosaur riding a bicycle",
+            "A mermaid reading a book",
+            "A pirate ship in space",
+            "A unicorn painting a rainbow"
+          ];
+          game.promptText = memoryPrompts[Math.floor(Math.random() * memoryPrompts.length)];
+          console.log(`🎯 [SOCKET] Assigned random prompt: "${game.promptText}"`);
+        }
+        
         game.gameTimer = {
           startTime: new Date(),
           endTime: new Date(Date.now() + game.gameSettings.duration * 1000),

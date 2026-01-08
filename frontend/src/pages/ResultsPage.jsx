@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { Trophy, Star, Lightbulb, Target, Home, RotateCcw, Share } from 'lucide-react'
 import { Button, Card } from 'pixel-retroui'
+import RetroGrid from '../components/RetroGrid'
 import toast from 'react-hot-toast'
 
 const ResultsPage = () => {
@@ -128,6 +129,15 @@ const ResultsPage = () => {
 
   return (
     <div className="results-page">
+      {/* Retro Grid Background */}
+      <RetroGrid 
+        angle={65}
+        cellSize={45}
+        opacity={0.25}
+        lightLineColor="#ffdd44"
+        darkLineColor="#ff6b35"
+      />
+      
       <div className="container">
         <div className="results-content">
           {/* Header */}

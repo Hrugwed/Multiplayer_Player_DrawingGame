@@ -19,8 +19,11 @@ const server = http.createServer(app);
 // CORS configuration
 const corsOptions = {
   origin: [
-    process.env.CORS_ORIGIN || 'http://localhost:5173',
-    'http://localhost:5174' // Alternative port
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://localhost:5174', // Alternative port
+    /\.vercel\.app$/, // Allow all Vercel deployments
+    /\.fly\.dev$/ // Allow Fly.io deployments
   ],
   credentials: true
 };
@@ -108,7 +111,7 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

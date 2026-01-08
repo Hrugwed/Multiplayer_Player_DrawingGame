@@ -10,9 +10,22 @@ const connectRedis = async () => {
   }
   
   try {
-    redisClient = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379'
-    });
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    
+    // Configure Redis client with TLS for Upstash
+    const clientConfig = {
+      url: redisUrl
+    };
+    
+    // Add TLS configuration for Upstash (when URL contains upstash.io)
+    if (redisUrl.includes('upstash.io')) {
+      clientConfig.socket = {
+        tls: true,
+        rejectUnauthorized: false
+      };
+    }
+    
+    redisClient = createClient(clientConfig);
 
     redisClient.on('error', (err) => {
       console.error('Redis Client Error:', err);

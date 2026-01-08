@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore'
 import { useSocketStore } from '../store/socketStore'
 import { Palette, Users, Zap, Mic, HelpCircle, X } from 'lucide-react'
 import { Button, Card, Input } from 'pixel-retroui'
+import RetroGrid from '../components/RetroGrid'
 import toast from 'react-hot-toast'
 
 const HomePage = () => {
@@ -102,6 +103,15 @@ const HomePage = () => {
 
   return (
     <div className="home-page">
+      {/* Retro Grid Background */}
+      <RetroGrid 
+        angle={65}
+        cellSize={60}
+        opacity={0.15}
+        lightLineColor="#ffdd44"
+        darkLineColor="#ff6b35"
+      />
+      
       <div className="container">
         <div className="home-content">
           {/* Header */}
