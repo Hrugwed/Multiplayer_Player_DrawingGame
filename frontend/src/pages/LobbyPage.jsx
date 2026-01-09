@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore'
 import { useSocketStore } from '../store/socketStore'
 import { Users, Crown, Play, Copy, Check, Mic, MicOff } from 'lucide-react'
 import { Button, Card } from 'pixel-retroui'
-import RetroGrid from '../components/RetroGrid'
+import voiceChatService from '../services/voiceChat'
 import toast from 'react-hot-toast'
 
 const LobbyPage = () => {
@@ -150,9 +150,23 @@ const LobbyPage = () => {
     navigate('/')
   }
 
-  const toggleVoice = () => {
-    setVoiceEnabled(!voiceEnabled)
-    // Voice chat implementation would go here
+  const toggleVoice = async () => {
+    try {
+      if (!voiceEnabled) {
+        // Enable voice chat
+        await voiceChatService.enable()
+        setVoiceEnabled(true)
+        toast.success('Voice chat enabled! You can now talk to other players.')
+      } else {
+        // Disable voice chat
+        await voiceChatService.disable()
+        setVoiceEnabled(false)
+        toast.success('Voice chat disabled')
+      }
+    } catch (error) {
+      console.error('Voice chat error:', error)
+      toast.error(error.message || 'Failed to toggle voice chat')
+    }
   }
 
   if (!currentGame || !currentPlayer) {
@@ -164,15 +178,6 @@ const LobbyPage = () => {
 
   return (
     <div className="lobby-page">
-      {/* Retro Grid Background */}
-      <RetroGrid 
-        angle={65}
-        cellSize={55}
-        opacity={0.18}
-        lightLineColor="#ffdd44"
-        darkLineColor="#ff6b35"
-      />
-      
       <div className="container">
         <div className="lobby-content">
           {/* Header */}

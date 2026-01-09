@@ -416,27 +416,57 @@ class GameSocketHandler {
           return;
         }
 
-        // Update game status and assign prompt
+        // If game was finished, reset it for a new round
+        if (game.status === 'finished') {
+          console.log(`🔄 [SOCKET] Resetting finished game for new round`);
+          
+          // Clear previous game data
+          game.canvasDataUrl = null;
+          game.aiResult = null;
+          
+          // Clear drawing data from memory storage
+          memoryStorage.clearDrawingData(lobbyCode);
+          console.log(`🧹 [SOCKET] Cleared drawing data from memory storage`);
+          
+          // Clear drawing data from Redis
+          try {
+            await redisService.clearDrawingData(lobbyCode);
+            console.log(`🧹 [SOCKET] Cleared drawing data from Redis`);
+          } catch (redisError) {
+            console.log(`⚠️ [SOCKET] Could not clear Redis drawing data:`, redisError.message);
+          }
+        }
+
+        // Update game status and assign new prompt
         game.status = 'active';
         
-        // Assign a random prompt for memory storage
-        if (!game.promptText) {
-          // Use a simple random prompt for memory storage
-          const memoryPrompts = [
-            "A cat wearing a superhero cape",
-            "A robot playing guitar",
-            "A tree house in the clouds",
-            "A dragon eating ice cream",
-            "A spaceship landing on Mars",
-            "A wizard cooking breakfast",
-            "A dinosaur riding a bicycle",
-            "A mermaid reading a book",
-            "A pirate ship in space",
-            "A unicorn painting a rainbow"
-          ];
-          game.promptText = memoryPrompts[Math.floor(Math.random() * memoryPrompts.length)];
-          console.log(`🎯 [SOCKET] Assigned random prompt: "${game.promptText}"`);
+        // Always clear drawing data for new games (regardless of previous status)
+        memoryStorage.clearDrawingData(lobbyCode);
+        console.log(`🧹 [SOCKET] Cleared drawing data from memory storage for new game`);
+        
+        // Also clear Redis data
+        try {
+          await redisService.clearDrawingData(lobbyCode);
+          console.log(`🧹 [SOCKET] Cleared drawing data from Redis for new game`);
+        } catch (redisError) {
+          console.log(`⚠️ [SOCKET] Could not clear Redis drawing data:`, redisError.message);
         }
+        
+        // Assign a new random prompt (always get a fresh one for new games)
+        const memoryPrompts = [
+          "A cat wearing a superhero cape",
+          "A robot playing guitar", 
+          "A tree house in the clouds",
+          "A dragon eating ice cream",
+          "A spaceship landing on Mars",
+          "A wizard cooking breakfast",
+          "A dinosaur riding a bicycle",
+          "A mermaid reading a book",
+          "A pirate ship in space",
+          "A unicorn painting a rainbow"
+        ];
+        game.promptText = memoryPrompts[Math.floor(Math.random() * memoryPrompts.length)];
+        console.log(`🎯 [SOCKET] Assigned new prompt: "${game.promptText}"`);
         
         game.gameTimer = {
           startTime: new Date(),
@@ -619,11 +649,34 @@ class GameSocketHandler {
 
       console.log(`📚 [SOCKET] Drawing history requested for ${lobbyCode} by ${socket.playerName}`);
 
+      // Check if this is a newly started game
+      const mongoose = require('mongoose');
+      let game;
+      
+      if (mongoose.connection.readyState !== 1) {
+        // Memory storage
+        const memoryStorage = require('../utils/memoryStorage');
+        game = memoryStorage.getGame(lobbyCode);
+      } else {
+        // Database
+        game = await gameService.getGameByLobbyCode(lobbyCode);
+      }
+      
+      // If game was started recently (within last 10 seconds), don't return drawing history
+      if (game && game.gameTimer && game.gameTimer.startTime) {
+        const gameStartTime = new Date(game.gameTimer.startTime);
+        const now = new Date();
+        const timeSinceStart = (now - gameStartTime) / 1000; // seconds
+        
+        if (timeSinceStart < 10) {
+          console.log(`🚫 [SOCKET] Game started recently (${timeSinceStart.toFixed(1)}s ago), returning empty drawing history`);
+          socket.emit('drawing_history', { strokes: [] });
+          return;
+        }
+      }
+
       let drawingStrokes = [];
 
-      // Check if MongoDB is available
-      const mongoose = require('mongoose');
-      
       if (mongoose.connection.readyState !== 1) {
         console.log(`💾 [SOCKET] Using memory storage for drawing history`);
         // Use memory storage
@@ -638,7 +691,6 @@ class GameSocketHandler {
           console.log('Could not get drawing history from Redis, trying database');
           
           // Fallback to database
-          const game = await gameService.getGameByLobbyCode(lobbyCode);
           if (game && game.drawingData) {
             drawingStrokes = game.drawingData.map(stroke => ({
               points: stroke.points,

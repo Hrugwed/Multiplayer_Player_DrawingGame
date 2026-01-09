@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore'
 import { useSocketStore } from '../store/socketStore'
 import { Timer, Users, Palette, Send, Mic, MicOff } from 'lucide-react'
 import { Button, Card } from 'pixel-retroui'
-import RetroGrid from '../components/RetroGrid'
+import voiceChatService from '../services/voiceChat'
 import toast from 'react-hot-toast'
 
 const GamePage = () => {
@@ -21,6 +21,7 @@ const GamePage = () => {
   const [canvasInitialized, setCanvasInitialized] = useState(false) // Prevent multiple initializations
   const [historyLoaded, setHistoryLoaded] = useState(false) // Prevent multiple history requests
   const [voiceMuted, setVoiceMuted] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [cursors, setCursors] = useState({})
 
   useEffect(() => {
@@ -45,9 +46,23 @@ const GamePage = () => {
 
     // Fetch existing drawing data when component mounts
     const fetchExistingDrawing = async () => {
-      console.log('📚 [GAME PAGE] Fetching existing drawing data...');
+      console.log('📚 [GAME PAGE] Checking if should fetch drawing data...');
+      
+      // Don't fetch drawing history if this is a newly started game
+      // Check if game was started recently (within last 10 seconds)
+      if (currentGame.gameTimer && currentGame.gameTimer.startTime) {
+        const gameStartTime = new Date(currentGame.gameTimer.startTime);
+        const now = new Date();
+        const timeSinceStart = (now - gameStartTime) / 1000; // seconds
+        
+        if (timeSinceStart < 10) {
+          console.log('📚 [GAME PAGE] Game started recently, skipping drawing history fetch');
+          return;
+        }
+      }
+      
       try {
-        // Request drawing history from server
+        // Request drawing history from server only for ongoing games
         if (socket && socket.connected) {
           console.log('📤 [GAME PAGE] Requesting drawing history via socket');
           getDrawingHistory(lobbyCode);
@@ -57,8 +72,13 @@ const GamePage = () => {
       }
     };
 
-    // Fetch existing drawing data
+    // Only fetch existing drawing data if game has been running for a while
     fetchExistingDrawing();
+
+    // Initialize voice chat
+    if (socket && socket.connected) {
+      voiceChatService.initialize(socket, lobbyCode)
+    }
 
     // Socket event listeners
     const handleDrawStart = (data) => {
@@ -100,7 +120,40 @@ const GamePage = () => {
       toast('Time is up! Submit your drawing.', { icon: '⏰' })
     }
 
-    const handleGameFinished = () => {
+    const handleGameStarted = (data) => {
+      console.log('🎮 [GAME PAGE] New game started:', data)
+      
+      // Reset canvas for new game
+      setCanvasInitialized(false)
+      setAllStrokes([])
+      setLastDrawnStrokeIndex(-1)
+      setHistoryLoaded(false)
+      
+      // Clear and reinitialize canvas
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        console.log('🧹 [GAME PAGE] Canvas cleared for new game')
+      }
+      
+      // Update game state
+      startGame(data.game)
+      
+      // Mark that this is a fresh game - don't fetch drawing history
+      console.log('🚫 [GAME PAGE] Marking as fresh game - no drawing history needed')
+    }
+
+    const handleGameFinished = (data) => {
+      console.log('🏁 [GAME PAGE] Game finished:', data)
+      
+      // Update game status in store
+      finishGame(data)
+      
+      // Show success message
+      toast.success(data.message || 'Game finished! Viewing results...')
+      
+      // Navigate to results
       navigate(`/results/${lobbyCode}`)
     }
 
@@ -159,6 +212,7 @@ const GamePage = () => {
     on('cursor_move', handleCursorMove)
     on('timer_update', handleTimerUpdate)
     on('game_time_up', handleGameTimeUp)
+    on('game_started', handleGameStarted)
     on('game_finished', handleGameFinished)
     on('drawing_history', handleDrawingHistory)
     on('error', handleError)
@@ -171,9 +225,13 @@ const GamePage = () => {
       off('cursor_move', handleCursorMove)
       off('timer_update', handleTimerUpdate)
       off('game_time_up', handleGameTimeUp)
+      off('game_started', handleGameStarted)
       off('game_finished', handleGameFinished)
       off('drawing_history', handleDrawingHistory)
       off('error', handleError)
+      
+      // Cleanup voice chat
+      voiceChatService.cleanup()
     }
   }, []) // Empty dependency array to prevent re-running
 
@@ -371,19 +429,68 @@ const GamePage = () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    if (!currentPlayer.isHost) {
+      toast.error('Only the host can submit the drawing')
+      return
+    }
+
+    // Confirm with host before ending game for everyone
+    const confirmed = window.confirm(
+      'Are you sure you want to end the game for all players? This will submit the current drawing and move everyone to the results page.'
+    )
+    
+    if (!confirmed) return
+
     try {
       const dataUrl = canvas.toDataURL('image/png')
-      // This would normally call the game store to submit
-      toast.success('Drawing submitted!')
-      navigate(`/results/${lobbyCode}`)
+      
+      console.log('🎨 [GAME PAGE] Host submitting drawing...')
+      
+      // Emit submit drawing event to backend
+      socket.emit('submit_drawing', {
+        lobbyCode,
+        canvasDataUrl: dataUrl
+      })
+      
+      toast.success('Drawing submitted! Analyzing...')
+      
     } catch (error) {
+      console.error('Submit drawing error:', error)
       toast.error('Failed to submit drawing')
     }
   }
 
-  const toggleVoice = () => {
-    setVoiceMuted(!voiceMuted)
-    // Voice chat implementation would go here
+  const toggleVoice = async () => {
+    try {
+      if (!voiceEnabled) {
+        // Enable voice chat
+        await voiceChatService.enable()
+        setVoiceEnabled(true)
+        setVoiceMuted(false)
+        toast.success('Voice chat enabled!')
+        
+        // Initiate calls with all other players
+        if (currentGame && currentGame.players) {
+          for (const player of currentGame.players) {
+            if (player.socketId !== currentPlayer.socketId) {
+              try {
+                await voiceChatService.initiateCall(player.socketId)
+              } catch (error) {
+                console.warn(`Failed to initiate call with ${player.name}:`, error)
+              }
+            }
+          }
+        }
+      } else {
+        // Toggle mute if voice is enabled
+        const isMuted = voiceChatService.toggleMute()
+        setVoiceMuted(isMuted)
+        toast.success(isMuted ? 'Microphone muted' : 'Microphone unmuted')
+      }
+    } catch (error) {
+      console.error('Voice chat error:', error)
+      toast.error(error.message || 'Failed to enable voice chat')
+    }
   }
 
   const formatTime = (seconds) => {
@@ -401,15 +508,6 @@ const GamePage = () => {
 
   return (
     <div className="game-page">
-      {/* Retro Grid Background */}
-      <RetroGrid 
-        angle={65}
-        cellSize={50}
-        opacity={0.2}
-        lightLineColor="#ffdd44"
-        darkLineColor="#ff6b35"
-      />
-      
       <div className="game-container">
         {/* Header */}
         <div className="game-header">
@@ -429,10 +527,11 @@ const GamePage = () => {
             
             <Button
               onClick={toggleVoice}
-              className={`voice-button ${voiceMuted ? 'muted' : 'active'}`}
-              variant={voiceMuted ? 'danger' : 'primary'}
+              className={`voice-button ${voiceEnabled ? (voiceMuted ? 'muted' : 'active') : 'disabled'}`}
+              variant={voiceEnabled ? (voiceMuted ? 'secondary' : 'primary') : 'secondary'}
+              title={voiceEnabled ? (voiceMuted ? 'Unmute microphone' : 'Mute microphone') : 'Enable voice chat'}
             >
-              {voiceMuted ? <MicOff size={20} /> : <Mic size={20} />}
+              {voiceEnabled ? (voiceMuted ? <MicOff size={20} /> : <Mic size={20} />) : <MicOff size={20} />}
             </Button>
           </div>
         </div>
@@ -521,7 +620,7 @@ const GamePage = () => {
                 className="submit-button retro-button"
               >
                 <Send size={20} />
-                Submit Drawing
+                {currentPlayer.isHost ? 'End Game for All Players' : 'Submit Drawing'}
               </Button>
             )}
           </div>

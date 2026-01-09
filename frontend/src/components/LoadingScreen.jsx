@@ -1,6 +1,5 @@
 import { Palette } from 'lucide-react'
 import { Button } from 'pixel-retroui'
-import RetroGrid from './RetroGrid'
 
 const LoadingScreen = ({ message = 'Loading...' }) => {
   return (

@@ -155,7 +155,25 @@ class GameService {
       throw new Error('Need at least 2 players to start');
     }
 
-    // Get random prompt
+    // If game was finished, reset it for a new round
+    if (game.status === 'finished') {
+      console.log(`🔄 [GAME SERVICE] Resetting finished game for new round`);
+      
+      // Clear previous game data
+      game.canvasDataUrl = null;
+      game.aiResult = null;
+      game.status = 'waiting'; // Reset status first
+      
+      // Clear drawing data from Redis
+      try {
+        await redisService.clearDrawingData(lobbyCode);
+        console.log(`🧹 [GAME SERVICE] Cleared drawing data from Redis`);
+      } catch (redisError) {
+        console.log(`⚠️ [GAME SERVICE] Could not clear Redis drawing data:`, redisError.message);
+      }
+    }
+
+    // Get random prompt (always get a fresh one for new games)
     const prompt = await Prompt.getRandomPrompt();
     if (!prompt) {
       throw new Error('No prompts available');
