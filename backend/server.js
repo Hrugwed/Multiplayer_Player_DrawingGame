@@ -23,6 +23,7 @@ const corsOptions = {
     'http://localhost:5173',
     'http://localhost:5174', // Alternative port
     /\.vercel\.app$/, // Allow all Vercel deployments
+    /\.onrender\.com$/, // Allow Render deployments
     /\.fly\.dev$/ // Allow Fly.io deployments
   ],
   credentials: true
@@ -49,8 +50,19 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Connect to databases (non-blocking for development)
-connectDB().catch(err => console.log('MongoDB connection failed, continuing without it:', err.message));
-connectRedis().catch(err => console.log('Redis connection failed, continuing without it:', err.message));
+connectDB().catch(err => {
+  console.log('MongoDB connection failed, continuing without it:', err.message);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('⚠️  Production warning: MongoDB not connected');
+  }
+});
+
+connectRedis().catch(err => {
+  console.log('Redis connection failed, continuing without it:', err.message);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('⚠️  Production warning: Redis not connected');
+  }
+});
 
 // Middleware to check database connection
 const checkDatabaseConnection = (req, res, next) => {
@@ -73,6 +85,21 @@ const checkDatabaseConnection = (req, res, next) => {
 // Routes
 app.use('/api/game', checkDatabaseConnection, gameRoutes);
 app.use('/api/prompts', checkDatabaseConnection, promptRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'DrawBoard Backend API',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      games: '/api/game',
+      prompts: '/api/prompts'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Health check
 app.get('/health', (req, res) => {
