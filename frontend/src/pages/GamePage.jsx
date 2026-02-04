@@ -469,11 +469,15 @@ const GamePage = () => {
         setVoiceMuted(false)
         toast.success('Voice chat enabled!')
         
+        // Log voice chat state for debugging
+        console.log('🎤 [DEBUG] Voice chat state after enable:', voiceChatService.getState())
+        
         // Initiate calls with all other players
         if (currentGame && currentGame.players) {
           for (const player of currentGame.players) {
             if (player.socketId !== currentPlayer.socketId) {
               try {
+                console.log(`📞 [DEBUG] Initiating call with ${player.name} (${player.socketId})`)
                 await voiceChatService.initiateCall(player.socketId)
               } catch (error) {
                 console.warn(`Failed to initiate call with ${player.name}:`, error)
@@ -491,6 +495,15 @@ const GamePage = () => {
       console.error('Voice chat error:', error)
       toast.error(error.message || 'Failed to enable voice chat')
     }
+  }
+
+  // Debug function to check voice chat state
+  const debugVoiceChat = () => {
+    const state = voiceChatService.getState()
+    console.log('🔍 [DEBUG] Voice Chat State:', state)
+    console.log('🔍 [DEBUG] Current Game Players:', currentGame?.players)
+    console.log('🔍 [DEBUG] Current Player:', currentPlayer)
+    toast.success(`Voice Debug: ${state.connectedPlayers.length} connections, ${state.localStreamTracks} tracks`)
   }
 
   const formatTime = (seconds) => {
@@ -532,6 +545,16 @@ const GamePage = () => {
               title={voiceEnabled ? (voiceMuted ? 'Unmute microphone' : 'Mute microphone') : 'Enable voice chat'}
             >
               {voiceEnabled ? (voiceMuted ? <MicOff size={20} /> : <Mic size={20} />) : <MicOff size={20} />}
+            </Button>
+            
+            {/* Debug button - remove in production */}
+            <Button
+              onClick={debugVoiceChat}
+              variant="secondary"
+              title="Debug voice chat"
+              style={{ marginLeft: '8px', fontSize: '12px' }}
+            >
+              🔍
             </Button>
           </div>
         </div>

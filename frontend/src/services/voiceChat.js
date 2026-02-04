@@ -46,16 +46,22 @@ class VoiceChatService {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1
         },
         video: false
       })
       
       this.isEnabled = true
-      console.log('✅ [VOICE] Microphone access granted')
       
-      // Create peer connections for existing players
-      await this.createPeerConnections()
+      // Log stream details
+      const audioTracks = this.localStream.getAudioTracks()
+      console.log('✅ [VOICE] Microphone access granted')
+      console.log(`🎤 [VOICE] Audio tracks: ${audioTracks.length}`)
+      audioTracks.forEach((track, index) => {
+        console.log(`🎤 [VOICE] Track ${index}: ${track.kind}, enabled: ${track.enabled}, muted: ${track.muted}`)
+      })
       
       return true
     } catch (error) {
@@ -115,41 +121,59 @@ class VoiceChatService {
   // Create peer connection for a specific player
   async createPeerConnection(playerId) {
     if (this.peerConnections.has(playerId)) {
+      console.log(`🔗 [VOICE] Reusing existing peer connection for player ${playerId}`)
       return this.peerConnections.get(playerId)
     }
 
-    console.log(`🔗 [VOICE] Creating peer connection for player ${playerId}`)
+    console.log(`🔗 [VOICE] Creating new peer connection for player ${playerId}`)
     
     const pc = new RTCPeerConnection(this.rtcConfig)
     
-    // Add local stream
+    // Add local stream tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
+        console.log(`📤 [VOICE] Adding local track to peer connection:`, track.kind, track.enabled)
         pc.addTrack(track, this.localStream)
       })
     }
     
     // Handle remote stream
     pc.ontrack = (event) => {
-      console.log(`🔊 [VOICE] Received remote stream from ${playerId}`)
+      console.log(`📥 [VOICE] Received remote track from ${playerId}:`, event.track.kind, event.track.enabled)
       const remoteStream = event.streams[0]
-      this.playRemoteAudio(playerId, remoteStream)
+      if (remoteStream) {
+        console.log(`🔊 [VOICE] Remote stream has ${remoteStream.getTracks().length} tracks`)
+        this.playRemoteAudio(playerId, remoteStream)
+      }
     }
     
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && this.socket) {
+        console.log(`🧊 [VOICE] Sending ICE candidate to ${playerId}`)
         this.socket.emit('voice_ice_candidate', {
           lobbyCode: this.lobbyCode,
           targetPlayerId: playerId,
           candidate: event.candidate
         })
+      } else if (!event.candidate) {
+        console.log(`🧊 [VOICE] ICE gathering complete for ${playerId}`)
       }
     }
     
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
       console.log(`🔗 [VOICE] Connection state with ${playerId}: ${pc.connectionState}`)
+      if (pc.connectionState === 'connected') {
+        console.log(`✅ [VOICE] Successfully connected to ${playerId}`)
+      } else if (pc.connectionState === 'failed') {
+        console.error(`❌ [VOICE] Connection failed with ${playerId}`)
+      }
+    }
+    
+    // Handle ICE connection state changes
+    pc.oniceconnectionstatechange = () => {
+      console.log(`🧊 [VOICE] ICE connection state with ${playerId}: ${pc.iceConnectionState}`)
     }
     
     this.peerConnections.set(playerId, pc)
@@ -169,11 +193,34 @@ class VoiceChatService {
     audio.id = `voice-${playerId}`
     audio.srcObject = stream
     audio.autoplay = true
+    audio.volume = 1.0
     audio.style.display = 'none'
+    
+    // Add event listeners for debugging
+    audio.onloadedmetadata = () => {
+      console.log(`🔊 [VOICE] Audio metadata loaded for player ${playerId}`)
+    }
+    
+    audio.onplay = () => {
+      console.log(`▶️ [VOICE] Audio started playing for player ${playerId}`)
+    }
+    
+    audio.onerror = (error) => {
+      console.error(`❌ [VOICE] Audio error for player ${playerId}:`, error)
+    }
+    
+    // Force play after a short delay
+    setTimeout(() => {
+      audio.play().then(() => {
+        console.log(`✅ [VOICE] Successfully started audio playback for player ${playerId}`)
+      }).catch(error => {
+        console.error(`❌ [VOICE] Failed to start audio playback for player ${playerId}:`, error)
+      })
+    }, 100)
     
     document.body.appendChild(audio)
     
-    console.log(`🔊 [VOICE] Playing audio for player ${playerId}`)
+    console.log(`🔊 [VOICE] Created audio element for player ${playerId}, stream tracks:`, stream.getTracks().length)
   }
 
   // Handle incoming voice offer
@@ -314,12 +361,42 @@ class VoiceChatService {
     }
   }
 
+  // Test local audio (for debugging)
+  testLocalAudio() {
+    if (!this.localStream) {
+      console.log('❌ [VOICE] No local stream available for testing')
+      return
+    }
+    
+    console.log('🧪 [VOICE] Testing local audio...')
+    
+    // Create a temporary audio element to test local stream
+    const testAudio = document.createElement('audio')
+    testAudio.srcObject = this.localStream
+    testAudio.muted = false // Don't mute for testing (will cause feedback)
+    testAudio.volume = 0.1 // Very low volume to avoid feedback
+    testAudio.autoplay = true
+    testAudio.style.display = 'none'
+    
+    testAudio.onplay = () => {
+      console.log('✅ [VOICE] Local audio test started')
+      // Remove test audio after 2 seconds
+      setTimeout(() => {
+        testAudio.remove()
+        console.log('🧪 [VOICE] Local audio test completed')
+      }, 2000)
+    }
+    
+    document.body.appendChild(testAudio)
+  }
+
   // Get current state
   getState() {
     return {
       isEnabled: this.isEnabled,
       isMuted: this.isMuted,
-      connectedPlayers: Array.from(this.peerConnections.keys())
+      connectedPlayers: Array.from(this.peerConnections.keys()),
+      localStreamTracks: this.localStream ? this.localStream.getTracks().length : 0
     }
   }
 }
