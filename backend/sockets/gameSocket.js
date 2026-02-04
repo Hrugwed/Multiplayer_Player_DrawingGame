@@ -784,7 +784,10 @@ class GameSocketHandler {
       return;
     }
 
-    socket.to(targetPlayerId).emit('voice_offer', {
+    console.log(`🎤 [VOICE] Forwarding voice offer from ${socket.id} to ${targetPlayerId}`);
+
+    // Send to specific socket ID using the io instance
+    this.io.to(targetPlayerId).emit('voice_offer', {
       fromPlayerId: socket.id,
       fromPlayerName: socket.playerName,
       offer
@@ -799,7 +802,10 @@ class GameSocketHandler {
       return;
     }
 
-    socket.to(targetPlayerId).emit('voice_answer', {
+    console.log(`🎤 [VOICE] Forwarding voice answer from ${socket.id} to ${targetPlayerId}`);
+
+    // Send to specific socket ID using the io instance
+    this.io.to(targetPlayerId).emit('voice_answer', {
       fromPlayerId: socket.id,
       fromPlayerName: socket.playerName,
       answer
@@ -814,7 +820,10 @@ class GameSocketHandler {
       return;
     }
 
-    socket.to(targetPlayerId).emit('voice_ice_candidate', {
+    console.log(`🎤 [VOICE] Forwarding ICE candidate from ${socket.id} to ${targetPlayerId}`);
+
+    // Send to specific socket ID using the io instance
+    this.io.to(targetPlayerId).emit('voice_ice_candidate', {
       fromPlayerId: socket.id,
       candidate
     });
@@ -828,6 +837,9 @@ class GameSocketHandler {
       return;
     }
 
+    console.log(`🎤 [VOICE] Player ${socket.playerName} ${isMuted ? 'muted' : 'unmuted'} their microphone`);
+
+    // Broadcast to all players in the lobby
     socket.to(lobbyCode).emit('player_voice_toggle', {
       playerId: socket.id,
       playerName: socket.playerName,

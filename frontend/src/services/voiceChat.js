@@ -185,13 +185,16 @@ class VoiceChatService {
       return
     }
     
-    console.log(`📞 [VOICE] Received voice offer from ${fromPlayerName}`)
+    console.log(`📞 [VOICE] Received voice offer from ${fromPlayerName} (${fromPlayerId})`)
     
     try {
       const pc = await this.createPeerConnection(fromPlayerId)
       
       await pc.setRemoteDescription(new RTCSessionDescription(offer))
-      const answer = await pc.createAnswer()
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      })
       await pc.setLocalDescription(answer)
       
       // Send answer back
@@ -211,13 +214,15 @@ class VoiceChatService {
   async handleVoiceAnswer(data) {
     const { fromPlayerId, fromPlayerName, answer } = data
     
-    console.log(`📞 [VOICE] Received voice answer from ${fromPlayerName}`)
+    console.log(`📞 [VOICE] Received voice answer from ${fromPlayerName} (${fromPlayerId})`)
     
     try {
       const pc = this.peerConnections.get(fromPlayerId)
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(answer))
         console.log(`✅ [VOICE] Voice connection established with ${fromPlayerName}`)
+      } else {
+        console.warn(`⚠️ [VOICE] No peer connection found for ${fromPlayerName}`)
       }
     } catch (error) {
       console.error(`❌ [VOICE] Failed to handle voice answer from ${fromPlayerName}:`, error)
@@ -258,7 +263,10 @@ class VoiceChatService {
     try {
       const pc = await this.createPeerConnection(targetPlayerId)
       
-      const offer = await pc.createOffer()
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      })
       await pc.setLocalDescription(offer)
       
       // Send offer
